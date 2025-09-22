@@ -1,6 +1,43 @@
 import React from 'react';
 import { Play, Users, Trophy, BookOpen, Monitor, Share2, Star, CheckCircle, Lock, Award, Target, TrendingUp, MessageSquare, Heart, Lightbulb, Download, Edit3, Trash2, RotateCcw, Save, Palette } from 'lucide-react';
 
+// Sticky Note Dialog Component
+const StickyNoteDialog = ({ show, value, onChange, onAdd, onCancel }) => {
+  if (!show) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+        <h3 className="text-lg font-bold mb-4">Add Sticky Note</h3>
+        <textarea
+          value={value}
+          onChange={onChange}
+          placeholder="Enter your note..."
+          className="w-full p-3 border border-gray-300 rounded-lg h-24 resize-none"
+          autoFocus
+        />
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={onAdd}
+            className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium"
+          >
+            Add Note
+          </button>
+          <button
+            onClick={onCancel}
+            className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const TeacherTrainingPlatform = () => {
   const canvasRef = React.useRef(null);
   const isDrawing = React.useRef(false);
@@ -10,7 +47,8 @@ const TeacherTrainingPlatform = () => {
   const [showStickyDialog, setShowStickyDialog] = React.useState(false);
   const [newStickyText, setNewStickyText] = React.useState('');
   const [stickyPosition, setStickyPosition] = React.useState({ x: 0, y: 0 });
-
+  const [draggedNote, setDraggedNote] = React.useState(null);
+  
   const [activeTab, setActiveTab] = React.useState('dashboard');
   const [userProgress, setUserProgress] = React.useState({
     level: 12,
@@ -20,7 +58,7 @@ const TeacherTrainingPlatform = () => {
     badges: 7,
     streak: 5
   });
-
+  
   const [selectedModule, setSelectedModule] = React.useState(null);
   const [simulationActive, setSimulationActive] = React.useState(false);
   const [lessonBuilder, setLessonBuilder] = React.useState({
@@ -31,7 +69,7 @@ const TeacherTrainingPlatform = () => {
     tools: [],
     objectives: []
   });
-
+  
   const [aiSuggestions, setAiSuggestions] = React.useState('');
   const [loadingAI, setLoadingAI] = React.useState(false);
 
@@ -89,14 +127,17 @@ const TeacherTrainingPlatform = () => {
       const ctx = canvas.getContext('2d');
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.lineWidth = drawingTool === 'pen' ? 2 : 10;
+      ctx.lineWidth = drawingTool === 'pen' ? 3 : 20;
       ctx.strokeStyle = drawingColor;
     }
   }, [drawingTool, drawingColor]);
 
   const startDrawing = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+
     if (drawingTool === 'sticky') {
-      const rect = canvasRef.current.getBoundingClientRect();
       setStickyPosition({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
@@ -104,29 +145,37 @@ const TeacherTrainingPlatform = () => {
       setShowStickyDialog(true);
       return;
     }
-
+    
     isDrawing.current = true;
-    const canvas = canvasRef.current;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    
     const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(x, y);
   };
 
   const draw = (e) => {
     if (!isDrawing.current || drawingTool === 'sticky') return;
-
+    
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
-
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    
     if (drawingTool === 'eraser') {
       ctx.globalCompositeOperation = 'destination-out';
     } else {
       ctx.globalCompositeOperation = 'source-over';
     }
-
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
@@ -160,8 +209,36 @@ const TeacherTrainingPlatform = () => {
     }
   };
 
-  const removeStickyNote = (id) => {
+  const removeStickyNote = (e, id) => {
+    e.stopPropagation();
     setStickyNotes(stickyNotes.filter(note => note.id !== id));
+  };
+  
+  const handleNoteMouseDown = (e, note) => {
+    e.stopPropagation();
+    const noteElement = e.target.closest('.sticky-note');
+    const rect = noteElement.getBoundingClientRect();
+    setDraggedNote({
+      id: note.id,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+    });
+  };
+
+  const handleNoteMouseMove = (e) => {
+    if (!draggedNote) return;
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const newX = e.clientX - canvasRect.left - draggedNote.offsetX;
+    const newY = e.clientY - canvasRect.top - draggedNote.offsetY;
+    setStickyNotes(prevNotes =>
+      prevNotes.map(note =>
+        note.id === draggedNote.id ? { ...note, x: newX, y: newY } : note
+      )
+    );
+  };
+
+  const handleNoteMouseUp = () => {
+    setDraggedNote(null);
   };
 
   // AI Integration Simulation
@@ -176,7 +253,7 @@ const TeacherTrainingPlatform = () => {
         "Add a quick formative assessment using digital tools.",
         "Incorporate multimedia elements like videos or animations."
       ];
-
+      
       const randomSuggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
       setAiSuggestions(randomSuggestion);
       setLoadingAI(false);
@@ -186,7 +263,12 @@ const TeacherTrainingPlatform = () => {
   // Enhanced Smart Board Simulation with Canvas
   const SmartBoardSimulation = () => (
     <div className="bg-gray-900 rounded-lg p-6 text-white">
-      <div className="bg-white rounded-lg p-4 mb-4 relative">
+      <div 
+        className="bg-white rounded-lg p-4 mb-4 relative"
+        onMouseMove={handleNoteMouseMove}
+        onMouseUp={handleNoteMouseUp}
+        onMouseLeave={handleNoteMouseUp}
+      >
         <canvas
           ref={canvasRef}
           width={800}
@@ -198,17 +280,18 @@ const TeacherTrainingPlatform = () => {
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
         />
-
+        
         {/* Sticky Notes */}
         {stickyNotes.map((note) => (
           <div
             key={note.id}
-            className="absolute bg-yellow-200 p-2 rounded shadow-md text-black text-sm max-w-32"
+            className="absolute bg-yellow-200 p-2 rounded shadow-md text-black text-sm max-w-32 cursor-grab active:cursor-grabbing sticky-note"
             style={{ left: `${note.x}px`, top: `${note.y}px` }}
+            onMouseDown={(e) => handleNoteMouseDown(e, note)}
           >
             <button
-              onClick={() => removeStickyNote(note.id)}
-              className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+              onClick={(e) => removeStickyNote(e, note.id)}
+              className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center z-10"
             >
               ×
             </button>
@@ -216,43 +299,46 @@ const TeacherTrainingPlatform = () => {
           </div>
         ))}
       </div>
-
+      
       {/* Drawing Tools */}
       <div className="flex gap-2 mb-4 flex-wrap">
         <button
           onClick={() => setDrawingTool('pen')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${drawingTool === 'pen' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            drawingTool === 'pen' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'
+          }`}
         >
           <Edit3 className="w-4 h-4" />
           Pen
         </button>
-
+        
         <button
           onClick={() => setDrawingTool('eraser')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${drawingTool === 'eraser' ? 'bg-red-600' : 'bg-red-500 hover:bg-red-600'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            drawingTool === 'eraser' ? 'bg-red-600' : 'bg-red-500 hover:bg-red-600'
+          }`}
         >
           <span>🧹</span>
           Eraser
         </button>
-
+        
         <button
           onClick={() => setDrawingTool('sticky')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${drawingTool === 'sticky' ? 'bg-yellow-600' : 'bg-yellow-500 hover:bg-yellow-600'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            drawingTool === 'sticky' ? 'bg-yellow-600' : 'bg-yellow-500 hover:bg-yellow-600'
+          }`}
         >
           <span>📝</span>
           Sticky Note
         </button>
-
+        
         <input
           type="color"
           value={drawingColor}
           onChange={(e) => setDrawingColor(e.target.value)}
           className="w-12 h-10 rounded-lg border-2 border-white cursor-pointer"
         />
-
+        
         <button
           onClick={clearCanvas}
           className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors"
@@ -260,13 +346,13 @@ const TeacherTrainingPlatform = () => {
           <RotateCcw className="w-4 h-4" />
           Clear
         </button>
-
+        
         <button className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
           <Save className="w-4 h-4" />
           Save
         </button>
       </div>
-
+      
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
         <button className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg flex items-center gap-2">
           <span>📊</span> Chart
@@ -281,7 +367,7 @@ const TeacherTrainingPlatform = () => {
           <span>🖼️</span> Image
         </button>
       </div>
-
+      
       <div className="bg-gray-800 rounded-lg p-4">
         <h4 className="font-semibold mb-2 flex items-center gap-2">
           <Lightbulb className="w-4 h-4 text-yellow-400" />
@@ -294,44 +380,12 @@ const TeacherTrainingPlatform = () => {
     </div>
   );
 
-  // Sticky Note Dialog
-  const StickyNoteDialog = () => (
-    showStickyDialog && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-lg shadow-xl w-96">
-          <h3 className="text-lg font-bold mb-4">Add Sticky Note</h3>
-          <textarea
-            value={newStickyText}
-            onChange={(e) => setNewStickyText(e.target.value)}
-            placeholder="Enter your note..."
-            className="w-full p-3 border border-gray-300 rounded-lg h-24 resize-none"
-            autoFocus
-          />
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={addStickyNote}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium"
-            >
-              Add Note
-            </button>
-            <button
-              onClick={() => setShowStickyDialog(false)}
-              className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  );
-
   // Enhanced Lesson Builder with AI Integration
   const LessonBuilder = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg p-6 shadow-sm border">
         <h3 className="text-xl font-bold mb-4">AI-Powered Lesson Builder</h3>
-
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div>
@@ -339,17 +393,17 @@ const TeacherTrainingPlatform = () => {
               <input
                 type="text"
                 value={lessonBuilder.title}
-                onChange={(e) => setLessonBuilder({ ...lessonBuilder, title: e.target.value })}
+                onChange={(e) => setLessonBuilder({...lessonBuilder, title: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter your lesson title..."
               />
             </div>
-
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
               <select
                 value={lessonBuilder.subject}
-                onChange={(e) => setLessonBuilder({ ...lessonBuilder, subject: e.target.value })}
+                onChange={(e) => setLessonBuilder({...lessonBuilder, subject: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select Subject</option>
@@ -360,12 +414,12 @@ const TeacherTrainingPlatform = () => {
                 <option value="art">Arts</option>
               </select>
             </div>
-
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Grade Level</label>
               <select
                 value={lessonBuilder.gradeLevel}
-                onChange={(e) => setLessonBuilder({ ...lessonBuilder, gradeLevel: e.target.value })}
+                onChange={(e) => setLessonBuilder({...lessonBuilder, gradeLevel: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select Grade</option>
@@ -376,60 +430,61 @@ const TeacherTrainingPlatform = () => {
               </select>
             </div>
           </div>
-
+          
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Learning Objectives</label>
               <textarea
                 value={lessonBuilder.objectives.join('\n')}
                 onChange={(e) => setLessonBuilder({
-                  ...lessonBuilder,
+                  ...lessonBuilder, 
                   objectives: e.target.value.split('\n').filter(obj => obj.trim())
                 })}
                 className="w-full p-3 border border-gray-300 rounded-lg h-32 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter each objective on a new line..."
               />
             </div>
-
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Lesson Content</label>
               <textarea
                 value={lessonBuilder.content}
-                onChange={(e) => setLessonBuilder({ ...lessonBuilder, content: e.target.value })}
+                onChange={(e) => setLessonBuilder({...lessonBuilder, content: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg h-24 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Describe your lesson content..."
               />
             </div>
           </div>
         </div>
-
+        
         <div className="mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Digital Tools & Technologies</label>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {[
-              'Smart Board', 'Real-time Polls', 'Video Conferencing', 'Interactive Games',
-              'Digital Quizzes', 'Collaboration Tools', '3D Simulations', 'AR/VR',
+              'Smart Board', 'Real-time Polls', 'Video Conferencing', 'Interactive Games', 
+              'Digital Quizzes', 'Collaboration Tools', '3D Simulations', 'AR/VR', 
               'Screen Sharing', 'Breakout Rooms', 'Digital Whiteboard', 'File Sharing'
             ].map((tool) => (
               <button
                 key={tool}
                 onClick={() => {
-                  const tools = lessonBuilder.tools.includes(tool)
+                  const tools = lessonBuilder.tools.includes(tool) 
                     ? lessonBuilder.tools.filter(t => t !== tool)
                     : [...lessonBuilder.tools, tool];
-                  setLessonBuilder({ ...lessonBuilder, tools });
+                  setLessonBuilder({...lessonBuilder, tools});
                 }}
-                className={`p-2 rounded-lg text-sm font-medium transition-colors ${lessonBuilder.tools.includes(tool)
+                className={`p-2 rounded-lg text-sm font-medium transition-colors ${
+                  lessonBuilder.tools.includes(tool)
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                }`}
               >
                 {tool}
               </button>
             ))}
           </div>
         </div>
-
+        
         <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
           <div className="flex items-start gap-3">
             <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -457,7 +512,7 @@ const TeacherTrainingPlatform = () => {
             </div>
           </div>
         </div>
-
+        
         <div className="flex gap-3 mt-6">
           <button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2">
             <Save className="w-4 h-4" />
@@ -499,7 +554,7 @@ const TeacherTrainingPlatform = () => {
       id: 2,
       title: "Virtual Chemistry Lab",
       author: "Prof. Michael Chen",
-      subject: "Science",
+      subject: "Science", 
       gradeLevel: "9-12",
       likes: 62,
       downloads: 318,
@@ -528,45 +583,37 @@ const TeacherTrainingPlatform = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              {/* Use correct public path */}
-              <img src="public/SIH-logo (1).png" alt="LearnEasy Logo" className="rounded-lg h-16 w-auto" />
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">📚</span>
+              </div>
               <div>
-                <h1 className="text-xl font-bold text-white">LearnEasy</h1>
+                <h1 className="text-xl font-bold text-white">EduTech Mastery</h1>
                 <p className="text-blue-100 text-xs">AI-Powered Teacher Training</p>
               </div>
             </div>
-
+            
             <div className="flex items-center gap-6 text-white">
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <div className="text-sm font-medium">
-                    Level {userProgress?.level ?? 0}
-                  </div>
-                  <div className="text-xs text-blue-100">
-                    {userProgress?.xp ?? 0} XP
-                  </div>
+                  <div className="text-sm font-medium">Level {userProgress.level}</div>
+                  <div className="text-xs text-blue-100">{userProgress.xp} XP</div>
                 </div>
                 <div className="w-32 bg-blue-400 bg-opacity-30 rounded-full h-2">
-                  <div
+                  <div 
                     className="bg-gradient-to-r from-yellow-400 to-orange-400 h-2 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${((userProgress?.xp ?? 0) % 1000) / 10}%`,
-                    }}
+                    style={{width: `${(userProgress.xp % 1000) / 10}%`}}
                   ></div>
                 </div>
               </div>
-
+              
               <div className="flex items-center gap-2 bg-orange-500 bg-opacity-20 px-3 py-1 rounded-full">
                 <span className="text-lg">🔥</span>
-                <span className="text-sm font-medium">
-                  {userProgress?.streak ?? 0} day streak
-                </span>
+                <span className="text-sm font-medium">{userProgress.streak} day streak</span>
               </div>
             </div>
           </div>
         </div>
       </header>
-
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Enhanced Navigation */}
@@ -577,22 +624,35 @@ const TeacherTrainingPlatform = () => {
             { id: 'simulations', label: 'Smart Board Lab', icon: <Monitor className="w-4 h-4" />, color: 'purple' },
             { id: 'create', label: 'AI Lesson Builder', icon: <Lightbulb className="w-4 h-4" />, color: 'yellow' },
             { id: 'community', label: 'Community Hub', icon: <Users className="w-4 h-4" />, color: 'pink' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-grow flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${activeTab === tab.id
-                  ? `bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 text-white shadow-lg`
-                  : 'text-gray-600 hover:bg-gray-100'
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            
+            const activeClasses = {
+              blue: 'bg-gradient-to-r from-blue-400 to-blue-500 text-white shadow-lg',
+              green: 'bg-gradient-to-r from-green-400 to-green-500 text-white shadow-lg',
+              purple: 'bg-gradient-to-r from-purple-400 to-purple-500 text-white shadow-lg',
+              yellow: 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-slate-800 shadow-lg',
+              pink: 'bg-gradient-to-r from-pink-400 to-pink-500 text-slate-800 shadow-lg',
+            };
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-grow flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                  isActive
+                    ? activeClasses[tab.color]
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
-            >
-              {tab.icon}
-              {tab.label}
-              {activeTab === tab.id && tab.id === 'create' && (
-                <span className="bg-white bg-opacity-20 px-2 py-1 rounded-full text-xs">AI</span>
-              )}
-            </button>
-          ))}
+              >
+                {tab.icon}
+                {tab.label}
+                {isActive && tab.id === 'create' && (
+                  <span className="bg-white text-yellow-700 font-bold px-2 py-1 rounded-full text-xs">AI</span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Dashboard */}
@@ -612,7 +672,7 @@ const TeacherTrainingPlatform = () => {
                   </div>
                 </div>
               </div>
-
+              
               <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -625,7 +685,7 @@ const TeacherTrainingPlatform = () => {
                   </div>
                 </div>
               </div>
-
+              
               <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -638,7 +698,7 @@ const TeacherTrainingPlatform = () => {
                   </div>
                 </div>
               </div>
-
+              
               <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -659,8 +719,9 @@ const TeacherTrainingPlatform = () => {
                 <h3 className="text-lg font-bold mb-4">Your Achievement Badges</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {badges.map((badge, index) => (
-                    <div key={index} className={`text-center p-4 rounded-xl transition-all hover:scale-105 ${badge.earned ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-200 shadow-md' : 'bg-gray-50 border-2 border-gray-200'
-                      }`}>
+                    <div key={index} className={`text-center p-4 rounded-xl transition-all hover:scale-105 ${
+                      badge.earned ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-200 shadow-md' : 'bg-gray-50 border-2 border-gray-200'
+                    }`}>
                       <div className="text-3xl mb-2">{badge.earned ? badge.icon : '🔒'}</div>
                       <p className={`text-sm font-bold mb-1 ${badge.earned ? 'text-yellow-800' : 'text-gray-500'}`}>
                         {badge.name}
@@ -685,14 +746,15 @@ const TeacherTrainingPlatform = () => {
                         <p className="font-medium text-sm">{module.title}</p>
                         <p className="text-xs text-gray-500">{module.duration} • {module.xp} XP</p>
                       </div>
-                      <button className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${module.completed ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-500 text-white hover:bg-blue-600'
-                        }`}>
+                      <button className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                        module.completed ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-500 text-white hover:bg-blue-600'
+                      }`}>
                         {module.completed ? 'Review' : 'Start'}
                       </button>
                     </div>
                   ))}
                 </div>
-
+                
                 <button className="w-full mt-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 transition-all">
                   View All Modules
                 </button>
@@ -718,19 +780,21 @@ const TeacherTrainingPlatform = () => {
               {modules.map((module) => (
                 <div key={module.id} className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-lg transition-all hover:scale-[1.02]">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className={`p-3 rounded-xl ${module.completed
-                        ? 'bg-gradient-to-br from-green-100 to-green-200 text-green-600'
+                    <div className={`p-3 rounded-xl ${
+                      module.completed 
+                        ? 'bg-gradient-to-br from-green-100 to-green-200 text-green-600' 
                         : 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-600'
-                      }`}>
+                    }`}>
                       {module.completed ? <CheckCircle className="w-6 h-6" /> : module.icon}
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-lg">{module.title}</h3>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${module.difficulty === 'Beginner' ? 'bg-green-100 text-green-700' :
-                            module.difficulty === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                          }`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          module.difficulty === 'Beginner' ? 'bg-green-100 text-green-700' :
+                          module.difficulty === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
                           {module.difficulty}
                         </span>
                         <span>•</span>
@@ -740,9 +804,9 @@ const TeacherTrainingPlatform = () => {
                       </div>
                     </div>
                   </div>
-
+                  
                   <p className="text-gray-600 text-sm mb-4">{module.description}</p>
-
+                  
                   <div className="flex items-center gap-2 mb-4">
                     {module.simulation && (
                       <span className="px-3 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-full text-xs font-medium">
@@ -753,13 +817,14 @@ const TeacherTrainingPlatform = () => {
                       🤖 AI-Enhanced
                     </span>
                   </div>
-
-                  <button
+                  
+                  <button 
                     onClick={() => setSelectedModule(module)}
-                    className={`w-full py-3 rounded-lg font-medium text-sm transition-all ${module.completed
+                    className={`w-full py-3 rounded-lg font-medium text-sm transition-all ${
+                      module.completed
                         ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
                         : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
-                      }`}
+                    }`}
                   >
                     {module.completed ? '✅ Review Module' : '🚀 Start Learning'}
                   </button>
@@ -786,9 +851,9 @@ const TeacherTrainingPlatform = () => {
                 </button>
               </div>
             </div>
-
+            
             <SmartBoardSimulation />
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl p-6 shadow-sm border">
                 <h3 className="text-lg font-bold mb-4">Practice Scenarios</h3>
@@ -801,7 +866,7 @@ const TeacherTrainingPlatform = () => {
                       <button className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600">Start</button>
                     </div>
                   </div>
-
+                  
                   <div className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                     <h4 className="font-semibold mb-2">🎯 Student Engagement Tools</h4>
                     <p className="text-sm text-gray-600 mb-3">Master polls, quizzes, and interactive activities</p>
@@ -860,19 +925,19 @@ const TeacherTrainingPlatform = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-blue-500 text-white p-4 rounded-lg text-center">
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl text-center shadow-lg">
                 <div className="text-2xl font-bold">1,247</div>
                 <div className="text-sm text-blue-100">Total Lessons</div>
               </div>
-              <div className="bg-green-500 text-white p-4 rounded-lg text-center">
+              <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-xl text-center shadow-lg">
                 <div className="text-2xl font-bold">892</div>
                 <div className="text-sm text-green-100">AI-Enhanced</div>
               </div>
-              <div className="bg-purple-500 text-white p-4 rounded-lg text-center">
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-xl text-center shadow-lg">
                 <div className="text-2xl font-bold">15.2k</div>
                 <div className="text-sm text-purple-100">Downloads</div>
               </div>
-              <div className="bg-orange-500 text-white p-4 rounded-lg text-center">
+              <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-xl text-center shadow-lg">
                 <div className="text-2xl font-bold">234</div>
                 <div className="text-sm text-orange-100">Active Teachers</div>
               </div>
@@ -892,7 +957,7 @@ const TeacherTrainingPlatform = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                        <span>by {lesson.author}</span>
+                        <span>by <span className="font-semibold text-gray-700">{lesson.author}</span></span>
                         <span>•</span>
                         <span>{lesson.subject}</span>
                         <span>•</span>
@@ -916,7 +981,7 @@ const TeacherTrainingPlatform = () => {
                       </div>
                     </div>
                   </div>
-
+                  
                   <div className="flex flex-wrap gap-2 mb-4">
                     {lesson.tools.map((tool, index) => (
                       <span key={index} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
@@ -924,16 +989,16 @@ const TeacherTrainingPlatform = () => {
                       </span>
                     ))}
                   </div>
-
+                  
                   <div className="flex gap-3">
                     <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
                       <Download className="w-4 h-4" />
                       Use This Lesson
                     </button>
-                    <button className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">
+                    <button className="border border-gray-300 hover:bg-gray-100 hover:border-gray-400 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                       Preview
                     </button>
-                    <button className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                    <button className="border border-gray-300 hover:bg-gray-100 hover:border-gray-400 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
                       <Heart className="w-4 h-4" />
                       Like
                     </button>
@@ -944,11 +1009,16 @@ const TeacherTrainingPlatform = () => {
           </div>
         )}
       </div>
-
-      <StickyNoteDialog />
+      
+      <StickyNoteDialog 
+        show={showStickyDialog}
+        value={newStickyText}
+        onChange={(e) => setNewStickyText(e.target.value)}
+        onAdd={addStickyNote}
+        onCancel={() => setShowStickyDialog(false)}
+      />
     </div>
   );
 };
 
 export default TeacherTrainingPlatform;
-
