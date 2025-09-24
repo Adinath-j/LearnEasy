@@ -54,9 +54,9 @@ const Header = ({ userProgress, setActiveTab }) => (
   <header className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-700 shadow-lg">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center h-16">
-        <button onClick={() => setActiveTab('dashboard')} className="flex items-center gap-3 text-left">
+        <button onClick={() => setActiveTab('dashboard')} className="flex items-center gap-3 text-left cursor-pointer">
           <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-lg">📚</span>
+            <span className="text-white font-bold text-lg"><img src="public/SIH-logo.png" alt="SIH Logo" className='h-full w-full overflow-hidden object-cover' /></span>
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">LearnEasy</h1>
@@ -112,7 +112,7 @@ const Navigation = ({ activeTab, setActiveTab }) => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all transform hover:scale-105 ${isActive ? activeClasses[tab.color] : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all transform  ${isActive ? activeClasses[tab.color] : 'text-gray-600 hover:bg-gray-100'}`}
           >
             {tab.icon}
             {tab.label}
@@ -137,7 +137,7 @@ const Dashboard = ({ userProgress, badges, modules }) => (
             <p className="text-3xl font-bold">{userProgress.completedModules}</p>
             <p className="text-xs text-blue-200 mt-1">+3 this week</p>
           </div>
-          <div className="bg-white bg-opacity-20 p-3 rounded-xl"><CheckCircle className="w-8 h-8" /></div>
+          <div className="bg-white bg-opacity-20 p-3 rounded-xl"><img src="public/circle_check.svg" alt="circle check" /></div>
         </div>
       </div>
       <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg transition transform hover:-translate-y-1">
@@ -147,7 +147,7 @@ const Dashboard = ({ userProgress, badges, modules }) => (
             <p className="text-3xl font-bold">{userProgress.badges}</p>
             <p className="text-xs text-green-200 mt-1">2 more to unlock</p>
           </div>
-          <div className="bg-white bg-opacity-20 p-3 rounded-xl"><Award className="w-8 h-8" /></div>
+          <div className="bg-white bg-opacity-20 p-3 rounded-xl"><img src="public/medal.svg" alt="medal image" /></div>
         </div>
       </div>
       <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg transition transform hover:-translate-y-1">
@@ -157,7 +157,7 @@ const Dashboard = ({ userProgress, badges, modules }) => (
             <p className="text-3xl font-bold">{userProgress.level}</p>
             <p className="text-xs text-purple-200 mt-1">Master Teacher</p>
           </div>
-          <div className="bg-white bg-opacity-20 p-3 rounded-xl"><Trophy className="w-8 h-8" /></div>
+          <div className="bg-white bg-opacity-20 p-3 rounded-xl"><img src="public/trophy.svg" alt="trophy image" /></div>
         </div>
       </div>
       <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg transition transform hover:-translate-y-1">
